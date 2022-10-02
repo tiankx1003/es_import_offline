@@ -13,6 +13,7 @@ import org.apache.spark.sql.types.MapType
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
 
+import java.lang
 import java.nio.file.{Files, Paths}
 import java.util.Date
 import java.util.concurrent.atomic.AtomicLong
@@ -48,13 +49,13 @@ object LuceneGen {
     val whereClause = Some(config.where).getOrElse("1 = 1")
     val input = spark.read.table(config.hiveTable).where(whereClause)
 
-    val finput = spark
+    val inputIndex = spark
       .read
-      .table("raw.I_DSPDATA_USERINDEX_INDEX_ONLINE")
+      .table("raw.index_list")
       .select("name")
       .where(s"theme = 'custom' and dt = '$dt'")
 
-    val forbid_array = finput.rdd.map(x => x.getString(0)).collect()
+    val forbid_array = inputIndex.rdd.map(x => x.getString(0)).collect()
 
     val hadoopConf = sc.hadoopConfiguration
     val fs = FileSystem.get(hadoopConf)
@@ -68,7 +69,7 @@ object LuceneGen {
     //serverNotifier.deleteNode()
 
 
-    def needIndex(fieldName: String, esKey: String): Boolean = {
+    def needIndex(fieldName: String): Boolean = {
       if (fieldName.endsWith("_il") || fieldName.endsWith("_ex")) false
       else true
     }
@@ -78,7 +79,7 @@ object LuceneGen {
          |select
          |  index_name,data_type
          |from
-         |  raw.I_DSPDATA_USERINDEX_INDEXFIELD
+         |  tmp.need_index_list
          |where dt = $dt
        """.stripMargin
 
@@ -136,9 +137,9 @@ object LuceneGen {
 
     val indexFieldCount = new AtomicLong()
 
-    val mapping = fields.toMap.map { case (esKey, x) => {
+    val mapping = fields.toMap.map { case (esKey, x) =>
       //是否建立索引
-      val indexField = x._2 || needIndex(x._3, esKey)
+      val indexField = x._2 || needIndex(x._3)
       val dataType = dataTypeConvert(esKey, x._1)
       val index = if (!indexField) {
         "no"
@@ -157,7 +158,6 @@ object LuceneGen {
         result += ("format" -> "yyyyMMdd")
       }
       (esKey, result.asJava)
-    }
     }.asJava
     log.info(s"Mapping index field count / total field : [${indexFieldCount.get()} / ${mapping.size()}]")
 
@@ -175,11 +175,11 @@ object LuceneGen {
     def notNullValue(value: Object): Boolean = {
       if (value == null) {
         false
-      } else if (value.isInstanceOf[String]) {
-        val strValue = value.asInstanceOf[String]
-        StringUtils.isNotEmpty(strValue) && !"null".equalsIgnoreCase(strValue)
-      } else {
-        true
+      } else value match {
+        case strValue: String =>
+          StringUtils.isNotEmpty(strValue) && !"null".equalsIgnoreCase(strValue)
+        case _ =>
+          true
       }
     }
 
@@ -196,12 +196,15 @@ object LuceneGen {
         val finalDataType = mappingObj.getJSONObject(fieldName).getString("type")
         finalDataType match {
           case "long" => java.lang.Long.valueOf(value.toString)
-          case "integer" => if (value.isInstanceOf[java.lang.Double]) {
-            value.asInstanceOf[java.lang.Double].intValue().asInstanceOf[java.lang.Integer]
-          } else if (value.isInstanceOf[java.lang.String]) {
-            new Integer(value.asInstanceOf[java.lang.String])
-          } else {
-            value.asInstanceOf[java.lang.Integer]
+          case "integer" => value match {
+            case double: lang.Double =>
+              double.intValue().asInstanceOf[Integer]
+            case _ => value match {
+              case str: String =>
+                new Integer(str)
+              case _ =>
+                value.asInstanceOf[Integer]
+            }
           }
           case "double" => java.lang.Double.valueOf(value.toString)
           case "string" => value.toString
@@ -220,7 +223,7 @@ object LuceneGen {
       val doc = new JSONObject()
       r.schema.fields.flatMap(f => {
         f.dataType match {
-          case x: MapType => {
+          case x: MapType =>
             val mapValue = r.getAs[Map[String, Object]](f.name)
             if (mapValue == null) {
               Seq()
@@ -233,17 +236,15 @@ object LuceneGen {
                 } else {
                   esDocKey = null
                 }
-                (esDocKey, getFinalValue(esKey, x.valueType.simpleString, mapValue.get(key).get))
+                (esDocKey, getFinalValue(esKey, x.valueType.simpleString, mapValue(key)))
               })
             }
-          }
-          case _ => {
+          case _ =>
             if (forbid_array.contains(f.name)) {
               Seq()
             } else {
               Seq((f.name, getFinalValue(f.name, f.dataType.simpleString, r.getAs(f.name))))
             }
-          }
         }
       }).foreach(f => {
         if (f._1 != null && notNullValue(f._2)) doc.put(f._1, f._2)
