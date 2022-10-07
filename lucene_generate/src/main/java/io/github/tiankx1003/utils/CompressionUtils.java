@@ -18,15 +18,14 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 /**
- * @author tiankx
+ * @author <a href="https://github.com/tiankx1003">tiankx</a>
  * @version 1.0
  * @since 2022-10-02 12:28
  */
 
 public class CompressionUtils {
 
-    private static Log log = LogFactory.getLog(CompressionUtils.class);
-
+    private static final Log log = LogFactory.getLog(CompressionUtils.class);
 
     public static void upload2HDFS(String from, String to) {
         try {
@@ -65,7 +64,7 @@ public class CompressionUtils {
         try (FSDataOutputStream fsDataOutputStream = fs.create(tmpToPath, true, 1024 * 1024); ZipArchiveOutputStream out = new ZipArchiveOutputStream(fsDataOutputStream)) {
             out.setUseZip64(Zip64Mode.AsNeeded);
             Files.walk(fromPath, Integer.MAX_VALUE).filter(path -> !Files.isDirectory(path)).forEach(path -> {
-                ZipArchiveEntry zipEntry = new ZipArchiveEntry(rootDirName + "/" + fromPath.relativize(path).toString());
+                ZipArchiveEntry zipEntry = new ZipArchiveEntry(rootDirName + "/" + fromPath.relativize(path));
                 try {
                     out.putArchiveEntry(zipEntry);
                     IOUtils.copy(Files.newInputStream(path), out);

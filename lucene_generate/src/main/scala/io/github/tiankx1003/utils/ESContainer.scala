@@ -23,7 +23,7 @@ import java.util.stream.Collectors
 import scala.util.Random
 
 /**
- * @author tiankx
+ * @author <a href="https://github.com/tiankx1003">tiankx</a>
  * @since 2022-10-02 12:29
  * @version 1.0
  */
@@ -32,40 +32,39 @@ class ESContainer(val config: Config, val partitionId: Int) {
 
 
   @transient private lazy val log = LogFactory.getLog(getClass)
-  private val dataDirs = config.localDataDir.split(",").map(dir => s"${dir}/${config.indexName}")
+  private val dataDirs = config.localDataDir.split(",").map(dir => s"$dir/${config.indexName}")
 
-
+  /** generate es lucene lock file */
   private val lockFile = {
-    val _tmp = Paths.get(s"/tmp/es_offline_lock/${config.indexName}.lock")
+    val _tmp = Paths.get(s"/tmp/es_import_offline_lock/${config.indexName}.lock")
     if (!Files.exists(_tmp)) {
       val parentDir = _tmp.getParent
       if (!Files.exists(parentDir)) {
         try {
           Files.createDirectories(parentDir)
         } catch {
-          case e: IOException => log.warn(s"dir already exists $parentDir")
+          case _: IOException => log.warn(s"dir already exists $parentDir")
         }
       }
       if (!Files.exists(_tmp)) {
         try {
           Files.createFile(_tmp)
         } catch {
-          case e: IOException => log.warn(s"lock file already exists ${_tmp}")
+          case _: IOException => log.warn(s"lock file already exists ${_tmp}")
         }
       }
     }
     _tmp
   }
   private val channel = FileChannel.open(lockFile, StandardOpenOption.WRITE)
-  private var lock: FileLock = null
+  private var lock: FileLock = _
 
+  /** random chose a dataDir from localDataDir sets, join partitionId and set permission */
   private val dataDir = {
-
     val chosenParent = try {
       lock = channel.lock()
       val rand = new Random(System.currentTimeMillis())
       val random_index = rand.nextInt(dataDirs.length)
-
       dataDirs(random_index)
     } finally {
       if (lock != null) {
@@ -78,22 +77,22 @@ class ESContainer(val config: Config, val partitionId: Int) {
     if (Files.exists(chosenPath)) {
       Files.delete(chosenPath)
     }
+    // Files.deleteIfExists(chosenPath)
     Files.createDirectories(chosenPath)
-    val posxiSet = new util.HashSet[PosixFilePermission]
-    posxiSet.add(PosixFilePermission.OTHERS_WRITE)
-    posxiSet.add(PosixFilePermission.OTHERS_READ)
-    posxiSet.add(PosixFilePermission.OTHERS_EXECUTE)
-    posxiSet.add(PosixFilePermission.OWNER_READ)
-    posxiSet.add(PosixFilePermission.OWNER_WRITE)
-    posxiSet.add(PosixFilePermission.OWNER_EXECUTE)
-    Files.setPosixFilePermissions(chosenPath, posxiSet)
+    val posixSet = new util.HashSet[PosixFilePermission]
+    posixSet.add(PosixFilePermission.OTHERS_WRITE)
+    posixSet.add(PosixFilePermission.OTHERS_READ)
+    posixSet.add(PosixFilePermission.OTHERS_EXECUTE)
+    posixSet.add(PosixFilePermission.OWNER_READ)
+    posixSet.add(PosixFilePermission.OWNER_WRITE)
+    posixSet.add(PosixFilePermission.OWNER_EXECUTE)
+    Files.setPosixFilePermissions(chosenPath, posixSet)
     chosenDir
   }
 
   log.info(s"data dir : $dataDir")
 
   private lazy val settings = {
-
     Settings
       .settingsBuilder
       .put("http.enabled", false)
@@ -112,7 +111,7 @@ class ESContainer(val config: Config, val partitionId: Int) {
       .put("transport.type", "local")
       .build()
   }
-  private val clusterName = s"elasticsearch_${partitionId}"
+  private val clusterName = s"elasticsearch_$partitionId"
 
   private lazy val node = NodeBuilder.nodeBuilder()
     .client(false)
@@ -131,7 +130,7 @@ class ESContainer(val config: Config, val partitionId: Int) {
     }
 
     override def afterBulk(executionId: Long, request: BulkRequest, response: BulkResponse): Unit = {
-      if (response.hasFailures()) {
+      if (response.hasFailures) {
         log.error(response.buildFailureMessage())
       }
       val total = counter.addAndGet(request.numberOfActions())
@@ -161,7 +160,7 @@ class ESContainer(val config: Config, val partitionId: Int) {
 
   def createIndex(): Boolean = {
     log.info("create index start")
-    val oldIndexPath: Path = getNodePath()
+    val oldIndexPath: Path = getNodePath
     if (Files.exists(oldIndexPath)) {
       Files.delete(oldIndexPath)
     }
@@ -201,13 +200,13 @@ class ESContainer(val config: Config, val partitionId: Int) {
            |}
          """.stripMargin)
       .get()
-    val success = resp.isAcknowledged()
+    val success = resp.isAcknowledged
 
     log.info(s"create index success : $success")
     success
   }
 
-  def getNodePath(): Path = {
+  def getNodePath: Path = {
     import scala.collection.JavaConversions._
     val nodeDirs = Files.list(Paths.get(dataDir, clusterName, "nodes")).collect(Collectors.toList[Path]).toSeq
     nodeDirs.maxBy(p => p.getFileName.toString.toInt).resolve("indices").resolve(config.indexName)
@@ -263,12 +262,12 @@ class ESContainer(val config: Config, val partitionId: Int) {
   }
 
   private def compressIndexAndUpload(): Unit = {
-    val zipSource = getNodePath()
+    val zipSource = getNodePath
     log.info("compress index file and upload to hdfs start")
     import scala.collection.JavaConversions._
     log.info(s"zip source dirs is $zipSource")
     val zipSourceExists = Files.exists(zipSource)
-    log.info(s"zip source ${zipSource} exists : $zipSourceExists")
+    log.info(s"zip source $zipSource exists : $zipSourceExists")
     val shardFiles = Files.list(zipSource).collect(Collectors.toList[Path])
 
     // 第0个partition上传自己的shard _state文件给所有其他shard使用
@@ -285,7 +284,7 @@ class ESContainer(val config: Config, val partitionId: Int) {
     for (
       p <- shardFiles
       if p.endsWith("_state") ||
-        Files.list(p.resolve("index")).iterator().filter(x => x.toString.endsWith(".fdt") || x.toString.endsWith(".cfs")).size > 0
+        Files.list(p.resolve("index")).iterator().exists(x => x.toString.endsWith(".fdt") || x.toString.endsWith(".cfs"))
     ) {
       val folderName = p.getFileName.toString
       val zipFileName = s"p${partitionId}_$folderName.zip"
@@ -308,11 +307,9 @@ class ESContainer(val config: Config, val partitionId: Int) {
   def cleanUp(): Unit = {
     try {
       close()
-      // TODO: 屏蔽压缩上传, 测试离线索引生成阶段报错
-      // compressIndexAndUpload()
+      compressIndexAndUpload()
     } finally {
-      // TODO: 屏蔽本地文件删除
-      // deleteWorkDir()
+      deleteWorkDir()
     }
   }
 

@@ -3,7 +3,7 @@ package io.github.tiankx1003.utils
 import scopt.OptionParser
 
 /**
- * @author tiankx
+ * @author <a href="https://github.com/tiankx1003">tiankx</a>
  * @since 2022-10-02 12:25
  * @version 1.0
  */
@@ -32,7 +32,7 @@ object ArgsParser {
                      indexESFields: Seq[String] = null,
                      indexHiveFields: Seq[String] = null,
                      zookeeper: String = null,
-                     chroot: String = "/es_offline"
+                     chroot: String = "/es_import_offline"
                    )
 
   val argsParser: OptionParser[Config] = new scopt.OptionParser[Config]("hive2es offline") {
@@ -84,7 +84,7 @@ object ArgsParser {
 
     opt[String]("id")
       .action((x, c) => c.copy(id = x))
-      .text("ES ID column")
+      .text("ES ID column") // always primary key
 
     opt[String]("routing")
       .action((x, c) => c.copy(routing = x))
