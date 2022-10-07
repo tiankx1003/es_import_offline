@@ -1,5 +1,7 @@
 # lucene generate
+ * read hive table and generate lucene file with spark
 
+```
 Ubuntu 22.04.1 LTS x86_64
 Memory: 4230MiB / 15902MiB
 CPU: Intel i5-8250U (8) @ 3.400GHz
@@ -18,7 +20,7 @@ spark-3.3.0-bin-hadoop3
 docker 1.13.1
 mysql-5.6.17 (docker)
 zookeeper-3.7.0 (docker)
-
+```
 ```shell
 docker run -d -p 3307:3306 -e MYSQL_ROOT_PASSWORD=root --name mysql-5.6.17 mysql:5.6.17
 docker run -d -p 2181:2181 --name es_zk --restart always zookeeper
