@@ -2,24 +2,27 @@ package io.github.tiankx1003
 
 import com.alibaba.fastjson.{JSON, JSONObject}
 import io.github.tiankx1003.utils.ArgsParser.{Config, argsParser}
-import io.github.tiankx1003.utils.{CompressionUtils, ESContainer}
+import io.github.tiankx1003.utils.{CompressionUtils, ESContainer, ServerNotifier}
 import org.apache.commons.lang.time.DateFormatUtils
 import org.apache.commons.lang3.StringUtils
 import org.apache.commons.logging.LogFactory
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.MapType
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{Dataset, Row, SparkSession}
+import org.apache.spark.sql.types.{MapType, StructField}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.writePretty
 
-import java.lang
+import java.{lang, util}
 import java.nio.file.{Files, Paths}
 import java.util.Date
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * @author tiankx
+ * generate lucene file offline with spark
+ *
+ * @author <a href="https://github.com/tiankx1003">tiankx</a>
  * @since 2022-10-02 12:23
  * @version 1.0
  */
@@ -40,20 +43,20 @@ object LuceneGen {
   def run(config: Config): Unit = {
     val spark = SparkSession
       .builder()
-      .appName("hive2es test tiankx")
+      .appName("import es offline test tiankx")
       .enableHiveSupport()
       .getOrCreate()
     val sc = spark.sparkContext
 
     val dt = config.indexName.substring(config.indexName.lastIndexOf("_") + 1)
     val whereClause = Some(config.where).getOrElse("1 = 1")
-    val input = spark.read.table(config.hiveTable).where(whereClause)
+    val srcTabQryResult: Dataset[Row] = spark.read.table(config.hiveTable).where(whereClause)
 
     val inputIndex = spark
       .read
-      .table("raw.index_list")
+      .table("tmp.abd_index_list")
       .select("name")
-      .where(s"theme = 'custom' and dt = '$dt'")
+      .where(s"theme = 'test' and dt = '$dt'")
 
     val forbid_array = inputIndex.rdd.map(x => x.getString(0)).collect()
 
@@ -63,14 +66,19 @@ object LuceneGen {
     val delResult = fs.delete(new Path(tmpWorkDir), true)
     log.info(s"clean hdfs tmp work dir: $tmpWorkDir, result: $delResult.")
 
-    //val serverNotifier = new ServerNotifier(config)
+    val serverNotifier = new ServerNotifier(config)
     // Clean Zookeeper
-    //log.info("clean zk path for clear")
-    //serverNotifier.deleteNode()
+    log.info("clean zk path for clear")
+    serverNotifier.deleteNode()
 
-
+    /**
+     * TODO
+     *
+     * @param fieldName hive field name
+     * @return if need create index
+     */
     def needIndex(fieldName: String): Boolean = {
-      if (fieldName.endsWith("_il") || fieldName.endsWith("_ex")) false
+      if (fieldName.endsWith("_map") || fieldName.endsWith("_ex")) false
       else true
     }
 
@@ -79,7 +87,7 @@ object LuceneGen {
          |select
          |  index_name,data_type
          |from
-         |  tmp.need_index_list
+         |  tmp.column_type_index_mapping
          |where dt = $dt
        """.stripMargin
 
@@ -94,10 +102,17 @@ object LuceneGen {
       })
       .toMap
 
-    println("******************************************:" + dt)
-    println(dataTypeMapping)
-    println("******************************************")
+    log.info("******************************************:" + dt)
+    log.info(dataTypeMapping)
+    log.info("******************************************")
 
+    /**
+     * hive column type mapping to es index type
+     *
+     * @param fieldName hive column name
+     * @param dataType  hive column type
+     * @return es index mapping
+     */
     def dataTypeConvert(fieldName: String, dataType: String): String = {
       dataTypeMapping.getOrElse(fieldName, dataType.toLowerCase match {
         case "bigint" => "long"
@@ -108,8 +123,15 @@ object LuceneGen {
       })
     }
 
+    /**
+     * concat map type column, generate field name
+     *
+     * @param fieldName hive field name
+     * @param key       hive map key
+     * @return
+     */
     def mapFieldName(fieldName: String, key: String): String = {
-      val esKey = if (fieldName.endsWith("_il")) {
+      val esKey = if (fieldName.endsWith("_map")) {
         fieldName + "-" + key
       } else {
         "" + key
@@ -117,18 +139,22 @@ object LuceneGen {
       esKey.toLowerCase().replaceAll("&", "-").replaceAll("\\$", "-")
     }
 
-    val fields = input.rdd.flatMap(r => {
-      r.schema.fields.flatMap(f => {
-        f.dataType match {
-          case x: MapType =>
-            val mapValue = r.getAs[Map[String, Object]](f.name)
+    /**
+     * Generate es field info by query result, process hive map type column specially.
+     * (es_index_name, (data_type, if_col_eq_index, hive_col_name))
+     * */
+    val esFieldInfo: Array[(String, (String, Boolean, String))] = srcTabQryResult.rdd.flatMap(resultRdd => {
+      resultRdd.schema.fields.flatMap(field => {
+        field.dataType match {
+          case mapTypeData: MapType =>
+            val mapValue: Map[String, Object] = resultRdd.getAs[Map[String, Object]](field.name)
             if (mapValue != null) {
               mapValue.keys.map(key => {
-                val esKey = mapFieldName(f.name, key)
-                (esKey, (x.valueType.simpleString, false, f.name))
+                val esKey = mapFieldName(field.name, key)
+                (esKey, (mapTypeData.valueType.simpleString, false, field.name))
               })
             } else Seq()
-          case _ => Seq((f.name, (f.dataType.simpleString, true, f.name)))
+          case _ => Seq((field.name, (field.dataType.simpleString, true, field.name)))
         }
       })
     }).filter(_._1 != null).distinct().collect()
@@ -137,8 +163,8 @@ object LuceneGen {
 
     val indexFieldCount = new AtomicLong()
 
-    val mapping = fields.toMap.map { case (esKey, x) =>
-      //是否建立索引
+    val esMapping: util.Map[String, util.Map[String, String]] = esFieldInfo.toMap.map { case (esKey, x) =>
+      // if build index
       val indexField = x._2 || needIndex(x._3)
       val dataType = dataTypeConvert(esKey, x._1)
       val index = if (!indexField) {
@@ -154,23 +180,25 @@ object LuceneGen {
       if (index != null) {
         result += ("index" -> index)
       }
-      if (dataType.equalsIgnoreCase("date")) {
+      if (dataType.equalsIgnoreCase("date")) { // TODO: es date fields
         result += ("format" -> "yyyyMMdd")
       }
       (esKey, result.asJava)
     }.asJava
-    log.info(s"Mapping index field count / total field : [${indexFieldCount.get()} / ${mapping.size()}]")
+    log.info(s"Mapping index field count / total field : [${indexFieldCount.get()} / ${esMapping.size()}]")
 
-    val mappingObj = JSON.toJSON(mapping).asInstanceOf[JSONObject]
+    val mappingObj = JSON.toJSON(esMapping).asInstanceOf[JSONObject]
     Files.write(Paths.get("mapping.json"), mappingObj.toString().getBytes)
 
-    CompressionUtils.upload2HDFS(Paths.get("mapping.json").toString
-      , Paths.get(config.hdfsWorkDir).resolve(config.indexName).resolve("mapping.json").toString)
+    CompressionUtils.upload2HDFS(
+      Paths.get("mapping.json").toString,
+      Paths.get(config.hdfsWorkDir).resolve(config.indexName).resolve("mapping.json").toString
+    )
 
     val mappingString = new String(Files.readAllBytes(Paths.get("mapping.json")))
     Files.delete(Paths.get("mapping.json"))
 
-    //serverNotifier.startIndex()
+    serverNotifier.startIndex()
 
     def notNullValue(value: Object): Boolean = {
       if (value == null) {
@@ -183,6 +211,14 @@ object LuceneGen {
       }
     }
 
+    /**
+     * process data by field type
+     *
+     * @param fieldName es field name
+     * @param dataType  es field type
+     * @param value     hive table query result RDD
+     * @return type processed data
+     */
     def getFinalValue(fieldName: String, dataType: String, value: Object): Object = {
       if (value != null && value.toString.startsWith("[") && value.toString.endsWith("]")) { // Array
         val arrayValue: Array[String] = value.toString.replace("[", "").replace("]", "").replace(" ", "").split(",")
@@ -217,35 +253,36 @@ object LuceneGen {
       }
     }
 
-    // RDD[Array[(esKey,(dataType,needIndex,value))]]
     var esDocKey: String = null
-    val data = input.rdd.map(r => {
+    // RDD[Array[(esKey,(dataType,needIndex,value))]]
+    // RDD[(primary_key, (esDocKey, esDocValue))]
+    val data: RDD[(String, JSONObject)] = srcTabQryResult.rdd.map(resultRdd => {
       val doc = new JSONObject()
-      r.schema.fields.flatMap(f => {
-        f.dataType match {
-          case x: MapType =>
-            val mapValue = r.getAs[Map[String, Object]](f.name)
+      resultRdd.schema.fields.flatMap((field: StructField) => {
+        field.dataType match {
+          case mapTypeData: MapType =>
+            val mapValue = resultRdd.getAs[Map[String, Object]](field.name)
             if (mapValue == null) {
               Seq()
             } else {
               mapValue.keys.map(key => {
-                val esKey = mapFieldName(f.name, key)
-                //过滤下线指标数据
+                val esKey = mapFieldName(field.name, key)
+                // filter abandoned fields
                 if (!forbid_array.contains(esKey)) {
                   esDocKey = esKey
                 } else {
                   esDocKey = null
                 }
-                (esDocKey, getFinalValue(esKey, x.valueType.simpleString, mapValue(key)))
+                (esDocKey, getFinalValue(esKey, mapTypeData.valueType.simpleString, mapValue(key)))
               })
             }
           case _ =>
-            if (forbid_array.contains(f.name)) {
+            if (forbid_array.contains(field.name)) {
               Seq()
             } else {
-              Seq((f.name, getFinalValue(f.name, f.dataType.simpleString, r.getAs(f.name))))
+              Seq((field.name, getFinalValue(field.name, field.dataType.simpleString, resultRdd.getAs(field.name))))
             }
-        }
+        } // (esDocKey, esDocValue)
       }).foreach(f => {
         if (f._1 != null && notNullValue(f._2)) doc.put(f._1, f._2)
       })
@@ -271,6 +308,6 @@ object LuceneGen {
       }
     })
 
-    //serverNotifier.completeIndex()
+    serverNotifier.completeIndex()
   }
 }
