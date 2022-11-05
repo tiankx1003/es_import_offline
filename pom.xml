@@ -11,6 +11,7 @@
     <modules>
         <module>lucene_generate</module>
         <module>index_merge</module>
+        <module>embedded_node</module>
     </modules>
 
     <properties>
