@@ -1,0 +1,25 @@
+elasticsearch:
+  clusterNode: localhost:9200
+  clusterName: tiankx-es-cluster
+
+curator:
+  retryCount: 5
+  elapsedTimeMs: 5000
+  connectString: omega:2181
+  sessionTimeoutMs: 60000
+  connectionTimeoutMs: 5000
+  rootPath: /es_import_offline
+
+server:
+  port: 0
+
+workDir:
+  /tmp/es_import_offline
+
+threadpools:
+  process:
+    corePoolSize: 3
+    maxPoolSize: 3
+  download:
+    corePoolSize: 3
+    maxPoolSize: 3
