@@ -2,18 +2,15 @@ package io.github.tiankx1003.config;
 
 import lombok.Data;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.plugins.Plugin;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 
 /**
@@ -33,12 +30,12 @@ public class ESConfig {
     @Bean
     public TransportClient transportClient() throws UnknownHostException {
         Settings settings = Settings.builder().put("cluster.name", clusterName).build();
-        TransportClient client = TransportClient.settings(settings).build();
+        TransportClient client = TransportClient.builder().settings(settings).build();
         // new TransportClient(settings, )
         for (String addr : clusterNodes.split(",")) {
             String[] addrs = addr.split(":");
             client.addTransportAddress(
-                    new TransportAddress(InetAddress.getByName(addrs[0]),
+                    new InetSocketTransportAddress(InetAddress.getByName(addrs[0]),
                             Integer.parseInt(addrs[1])));
         }
         return client;

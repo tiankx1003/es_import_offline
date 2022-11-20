@@ -11,7 +11,6 @@
     <modules>
         <module>lucene_generate</module>
         <module>index_merge</module>
-        <module>embedded_node</module>
     </modules>
 
     <properties>
@@ -31,13 +30,6 @@
 
     <dependencyManagement>
         <dependencies>
-<!--            <dependency>-->
-<!--                <groupId>org.springframework.boot</groupId>-->
-<!--                <artifactId>spring-boot-dependencies</artifactId>-->
-<!--                <version>2.2.1.RELEASE</version>-->
-<!--                <type>pom</type>-->
-<!--                <scope>import</scope>-->
-<!--            </dependency>-->
             <dependency>
                 <groupId>org.scala-lang</groupId>
                 <artifactId>scala-library</artifactId>

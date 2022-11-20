@@ -26,20 +26,15 @@ public class LeaderSelectorController extends LeaderSelectorListenerAdapter {
     private final CountDownLatch latch = new CountDownLatch(1);
 
     @Autowired
-    private final RegistryCenter registryCenter;
+    private RegistryCenter registryCenter;
 
     @Autowired
     @Lazy
-    private final NodeService nodeService;
+    private NodeService nodeService;
 
     private final String LEADER_PATH = "leader";
 
     private LeaderSelector leaderSelector;
-
-    public LeaderSelectorController(RegistryCenter registryCenter, NodeService nodeService) {
-        this.registryCenter = registryCenter;
-        this.nodeService = nodeService;
-    }
 
     @PostConstruct
     public void init() {

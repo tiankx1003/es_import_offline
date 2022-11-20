@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.monitor.fs.FsInfo.Path;
@@ -117,7 +116,7 @@ public class ESClient {
         List<String> nodeName2Ip = new ArrayList<>();
 
         NodesInfoResponse clusterInfo = client.admin().cluster().prepareNodesInfo().get();
-        List<NodeInfo> nodes = clusterInfo.getNodes();
+        NodeInfo[] nodes = clusterInfo.getNodes();
         for (NodeInfo nodeInfo : nodes) {
             DiscoveryNode node = nodeInfo.getNode();
             //machine IP
@@ -238,8 +237,8 @@ public class ESClient {
         NodesStatsResponse resp = client.admin().cluster().prepareNodesStats(nodeId).setFs(true)
                 .get();
         List<String> result = Lists.newArrayList();
-        if (resp.getNodes().size() > 0) {
-            for (Path path : resp.getNodes().get(0).getFs()) {
+        if (resp.getNodes().length > 0) {
+            for (Path path : resp.getNodes()[0].getFs()) {
                 result.add(path.getPath());
             }
         }
@@ -295,14 +294,7 @@ public class ESClient {
             }
             waitCount--;
         }
-        Map<String, String> finalIndexSettingMap = JSONObject.parseObject(finalIndexSetting, new TypeReference<Map<String, String>>() {
-        });
-        Settings settings = Settings.builder().putProperties(finalIndexSettingMap, new Function<String, String>() {
-            @Override
-            public String apply(String s) {
-                return null;
-            }
-        }).build();
-        client.admin().indices().prepareUpdateSettings(indexName).setSettings(settings).get();
+        JSONObject finalIndexSettingMap = JSONObject.parseObject(finalIndexSetting);
+        client.admin().indices().prepareUpdateSettings(indexName).setSettings(finalIndexSettingMap).get();
     }
 }

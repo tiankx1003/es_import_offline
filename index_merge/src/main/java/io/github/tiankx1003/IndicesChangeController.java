@@ -27,19 +27,13 @@ public class IndicesChangeController implements PathChildrenCacheListener {
 
 
     @Autowired
-    private final RegistryCenter registryCenter;
+    private RegistryCenter registryCenter;
 
     @Autowired
     @Lazy
-    private final NodeService nodeService;
+    private NodeService nodeService;
 
     private PathChildrenCache cache;
-
-    public IndicesChangeController(RegistryCenter registryCenter, NodeService nodeService) {
-        this.registryCenter = registryCenter;
-        this.nodeService = nodeService;
-    }
-
 
     @PostConstruct
     private void init() {
