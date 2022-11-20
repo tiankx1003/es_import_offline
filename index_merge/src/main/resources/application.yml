@@ -1,0 +1,25 @@
+elasticsearch:
+  clusterNode: localhost:9300
+  clusterName: elasticsearch
+
+curator:
+  retryCount: 5
+  elapsedTimeMs: 5000
+  connectString: 172.0.0.1:2181
+  sessionTimeoutMs: 60000
+  connectionTimeoutMs: 5000
+  rootPath: /es_import_offline
+
+server:
+  port: 0
+
+workDir:
+  /tmp/es_import_offline
+
+threadpools:
+  process:
+    corePoolSize: 20
+    maxPoolSize: 20
+  download:
+    corePoolSize: 20
+    maxPoolSize: 20
