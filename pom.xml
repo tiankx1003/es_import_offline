@@ -9,8 +9,8 @@
     <packaging>pom</packaging>
     <version>1.1.20221002_alpha</version>
     <modules>
-        <module>lucene_generate</module>
-        <module>index_merge</module>
+        <module>es2.x</module>
+        <module>es6.x</module>
     </modules>
 
     <properties>
@@ -21,7 +21,6 @@
         <spark.version>3.3.0</spark.version>
         <fastjson.version>1.2.72</fastjson.version>
         <scopt.version>3.7.0</scopt.version>
-        <elasticsearch.version>2.3.2</elasticsearch.version>
         <commons.compress.version>1.19</commons.compress.version>
         <curator.version>4.2.0</curator.version>
         <zookeeper.version>3.7.0</zookeeper.version>
@@ -68,11 +67,6 @@
                 <groupId>com.github.scopt</groupId>
                 <artifactId>scopt_${scala.major.version}</artifactId>
                 <version>${scopt.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.elasticsearch</groupId>
-                <artifactId>elasticsearch</artifactId>
-                <version>${elasticsearch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.sun.jna</groupId>

@@ -3,6 +3,22 @@
   <component name="Encoding" defaultCharsetForPropertiesFiles="UTF-8">
     <file url="file://$PROJECT_DIR$/embedded_node/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/embedded_node/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/index_merge/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/index_merge/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/lucene_generate/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/lucene_generate/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/test/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es2.x/test/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/embedded_node/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/embedded_node/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/local_generate/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/local_generate/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/server_merge/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/server_merge/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/es6.x/src/main/resources" charset="UTF-8" />
     <file url="PROJECT" charset="UTF-8" />
   </component>
 </project>
