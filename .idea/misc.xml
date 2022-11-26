@@ -15,6 +15,7 @@
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/embedded_node/pom.xml" />
+        <option value="$PROJECT_DIR$/es2.x/test/pom.xml" />
       </set>
     </option>
   </component>

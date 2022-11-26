@@ -65,6 +65,7 @@ public class CompressionUtils {
             out.setUseZip64(Zip64Mode.AsNeeded);
             Files.walk(fromPath, Integer.MAX_VALUE).filter(path -> !Files.isDirectory(path)).forEach(path -> {
                 ZipArchiveEntry zipEntry = new ZipArchiveEntry(rootDirName + "/" + fromPath.relativize(path));
+                // TODO: set UNIX mod compatible with DOS
                 try {
                     out.putArchiveEntry(zipEntry);
                     IOUtils.copy(Files.newInputStream(path), out);

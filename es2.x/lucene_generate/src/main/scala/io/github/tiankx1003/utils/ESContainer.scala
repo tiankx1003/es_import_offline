@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.stream.Collectors
 import scala.util.Random
-
+import scala.collection.JavaConversions._
 /**
  * @author <a href="https://github.com/tiankx1003">tiankx</a>
  * @since 2022-10-02 12:29
@@ -207,7 +207,6 @@ class ESContainer(val config: Config, val partitionId: Int) {
   }
 
   def getNodePath: Path = {
-    import scala.collection.JavaConversions._
     val nodeDirs = Files.list(Paths.get(dataDir, clusterName, "nodes")).collect(Collectors.toList[Path]).toSeq
     nodeDirs.maxBy(p => p.getFileName.toString.toInt).resolve("indices").resolve(config.indexName)
   }
@@ -252,19 +251,9 @@ class ESContainer(val config: Config, val partitionId: Int) {
     log.info("close node end")
   }
 
-  def uploadToHdfs(src: Path, dest: Path): Unit = {
-    if (!fs.exists(new org.apache.hadoop.fs.Path(dest.getParent.toString))) {
-      log.info(s"hdfs path ${dest.getParent} not exist and create it")
-      fs.mkdirs(new org.apache.hadoop.fs.Path(dest.getParent.toString))
-    }
-    fs.copyFromLocalFile(true, true, new org.apache.hadoop.fs.Path(src.toString), new org.apache.hadoop.fs.Path(dest.toString))
-    log.info(s"upload index folder from $src to $dest")
-  }
-
   private def compressIndexAndUpload(): Unit = {
     val zipSource = getNodePath
     log.info("compress index file and upload to hdfs start")
-    import scala.collection.JavaConversions._
     log.info(s"zip source dirs is $zipSource")
     val zipSourceExists = Files.exists(zipSource)
     log.info(s"zip source $zipSource exists : $zipSourceExists")
